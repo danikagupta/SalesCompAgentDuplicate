@@ -1,12 +1,12 @@
 import streamlit as st
 import os
-from graph import zoomHandler
+from graph import salesCompAgent
 import random
 
 
 os.environ["LANGCHAIN_TRACING_V2"]="true"
-os.environ["LANGCHAIN_API_KEY"]=st.secrets['LANGSMITH_API_KEY']
-os.environ["LANGSMITH_API_KEY"]=st.secrets['LANGSMITH_API_KEY']
+os.environ["LANGCHAIN_API_KEY"]=st.secrets['LANGCHAIN_API_KEY']
+os.environ["LANGSMITH_API_KEY"]=st.secrets['LANGCHAIN_API_KEY']
 
 DEBUGGING=0
 
@@ -45,7 +45,7 @@ def start_chat():
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user", avatar=avatars["user"]):
             st.markdown(prompt)
-        abot=zoomHandler(st.secrets['OPENAI_API_KEY'])
+        abot=salesCompAgent(st.secrets['OPENAI_API_KEY'])
         thread={"configurable":{"thread_id":thread_id}}
         for s in abot.graph.stream({'initialMsg':prompt},thread):
             st.sidebar.write(abot.graph.get_state(thread))

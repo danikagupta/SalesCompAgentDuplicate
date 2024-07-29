@@ -25,15 +25,6 @@ def start_chat():
         st.session_state.thread_id = random.randint(1000, 9999)
     thread_id = st.session_state.thread_id
 
-    # Reminder
-    st.sidebar.write("""
-    Use cases:
-    1. Student didnt join.
-    2. Teacher cannot join session.
-    3. Teacher needs to cancel existing session.
-    4. ...
-                      """)
-
 
     for message in st.session_state.messages:
         if message["role"] != "system":

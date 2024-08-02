@@ -10,14 +10,17 @@ os.environ["LANGSMITH_API_KEY"]=st.secrets['LANGCHAIN_API_KEY']
 
 DEBUGGING=0
 
+# This function sets up the chat interface and handles user interactions
 def start_chat():
     st.title('Sales Comp Agent')
     avatars={"system":"💻🧠","user":"🧑‍💼","assistant":"🎓"}
-
+    
+    # Keeping context of conversations, checks if there is anything in messages array
+    # If not, it creates an empty list where all messages will be saved
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Keeping context of conversations
+    # Ensuring a unique thread-id is maintained for every conversation
     if "thread-id" not in st.session_state:
         st.session_state.thread_id = random.randint(1000, 9999)
     thread_id = st.session_state.thread_id
@@ -29,7 +32,8 @@ def start_chat():
             with st.chat_message(message["role"], avatar=avatar):
                 st.markdown(message["content"])
 
-    # Handle new user input
+    # Handle new user input. Note: walrun operator serves two functions, it checks if
+    # the user entered any input. If yes, it returns that value.
     if prompt := st.chat_input("What is up?"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user", avatar=avatars["user"]):
@@ -41,7 +45,7 @@ def start_chat():
         
         # Stream responses from the agent
         for s in abot.graph.stream({'initialMessage':prompt},thread):
-            st.sidebar.write(abot.graph.get_state(thread))
+            #st.sidebar.write(abot.graph.get_state(thread))
             if DEBUGGING:
                 print(f"GRAPH RUN: {s}")
                 st.write(s)

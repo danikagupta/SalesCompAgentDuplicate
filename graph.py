@@ -72,7 +72,6 @@ class salesCompAgent():
 
         category = llm_response.category
         print(f"category is {category}")
-        self.responseToUser = "great job"
         
         # Return the updated state with the category
         return{

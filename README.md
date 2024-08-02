@@ -1,19 +1,24 @@
-# 🎈 Blank app template
+# Flow of Execution
 
-A simple Streamlit app template for you to modify!
+1) User Input and Initial Classifier:
+The user input is passed to the graph.stream method.
+The initial_classifier method is invoked since the entry point is set to "classifier".
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+2) Returning from Initial Classifier:
+The initial_classifier method classifies the input and returns a state with the category.
+The returned state includes "category": category, where category could be "policy", "commission", etc.
 
-### How to run it on your own machine
+3) Routing in Main Router:
+The main_router method receives the state and returns the category, which corresponds to the next node in the state graph.
 
-1. Install the requirements
+4) StateGraph Handles Transitions:
+The StateGraph framework automatically transitions to the node corresponding to the returned category.
+It then calls the method associated with that node.
 
-   ```
-   $ pip install -r requirements.txt
-   ```
+Why do we need both initial_classifier and main_router?
 
-2. Run the app
+initial_classifier: Focuses solely on classifying the user input. It doesn't decide what to do next.
 
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+main_router: Takes the classification result and determines the next state in the graph. T
+
+This decouples the classification logic from the routing logic.

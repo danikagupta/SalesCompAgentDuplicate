@@ -32,8 +32,8 @@ def start_chat():
             with st.chat_message(message["role"], avatar=avatar):
                 st.markdown(message["content"])
 
-    # Handle new user input. Note: walrun operator serves two functions, it checks if
-    # the user entered any input. If yes, it returns that value.
+    # Handle new user input. Note: walrus operator serves two functions, it checks if
+    # the user entered any input. If yes, it returns that value and assigns to 'prompt'.
     if prompt := st.chat_input("What is up?"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user", avatar=avatars["user"]):

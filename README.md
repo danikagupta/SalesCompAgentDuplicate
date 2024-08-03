@@ -15,10 +15,10 @@ The main_router method receives the state and returns the category, which corres
 The StateGraph framework automatically transitions to the node corresponding to the returned category.
 It then calls the method associated with that node.
 
-Why do we need both initial_classifier and main_router?
+# Why do we need both initial_classifier and main_router?
 
 initial_classifier: Focuses solely on classifying the user input. It doesn't decide what to do next.
 
-main_router: Takes the classification result and determines the next state in the graph. T
+main_router: Takes the classification result and determines the next state in the graph. 
 
 This decouples the classification logic from the routing logic.

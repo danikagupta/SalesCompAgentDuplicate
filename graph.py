@@ -18,6 +18,15 @@ class AgentState(TypedDict):
 class Category(BaseModel):
     category: str
 
+class PolicyResponse(BaseModel):
+    policy: str
+    response: str
+
+class CommissionResponse(BaseModel):
+    commission: str
+    calculation: str
+    response: str
+
 # Define valid categories
 VALID_CATEGORIES = ["policy", "commission", "contest", "ticket", "clarify"]
 
@@ -25,7 +34,7 @@ VALID_CATEGORIES = ["policy", "commission", "contest", "ticket", "clarify"]
 class salesCompAgent():
     def __init__(self, api_key):
         # Initialize the model with the given API key
-        self.model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, api_key=api_key)
+        self.model = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=api_key)
 
         # Build the state graph
         builder = StateGraph(AgentState)
@@ -76,16 +85,81 @@ class salesCompAgent():
         # Return the updated state with the category
         return{
             "lnode": "initial_classifier", 
-            "responseToUser": "success",
+            "responseToUser": "Classifier successful",
             "category": category
         }
     
-    # Placeholder function for the policy agent
+     # Main router function to direct to the appropriate agent based on the category
+    def main_router(self, state: AgentState):
+        my_category = state['category']
+        if my_category in VALID_CATEGORIES:
+            return my_category
+        else:
+            print(f"unknown category: {my_category}")
+            return END
+
+    # Defining Policy Agent function
     def policy_agent(self, state: AgentState):
+        POLICY_PROMPT = f"""
+        You are a Sales Compensation Policy expert. You understand four policies related
+        sales compensation. Based on user's query, you would decide which policy to use. 
+        The polices are:
+        1) Minimum commission guarantee
+        2) Air cover bonus
+        3) Windfall activation
+        4) Leave of absence
+
+        Please provide user response as well as the policy used to decide.      
+        """
         print("policy agent")
 
-    # Placeholder function for the commission agent
+        # Invoke the model with the policy agent prompt
+        llm_response = self.model.with_structured_output(PolicyResponse).invoke([
+            SystemMessage(content=POLICY_PROMPT),
+            HumanMessage(content=state['initialMessage']),
+        ])
+
+        policy = llm_response.policy
+        response = llm_response.response
+        print(f"Policy is: {policy}, Response is: {response}")
+        
+        # Return the updated state with the category
+        return{
+            "lnode": "initial_classifier", 
+            "responseToUser": f"{response} \n\n Source: {policy}",
+            "category": policy
+        }
+
+    # Defining Commission Agent function
     def commission_agent(self, state: AgentState):
+        COMMISSION_PROMPT = f"""
+        You are a Sales Commissions expert. Users will ask you about what their commission
+        will be for a particular deal. You can assume their on-target incentive to be $100000
+        and their annual quota to be $2000000. Also note that Commission is equal to on-target
+        incentive divided by annual quota. 
+        
+        Please provide user commission as well as explain how you computed it.      
+        """
+        print("commission agent")
+
+        # Invoke the model with the commission agent prompt
+        llm_response = self.model.with_structured_output(CommissionResponse).invoke([
+            SystemMessage(content=COMMISSION_PROMPT),
+            HumanMessage(content=state['initialMessage']),
+        ])
+
+        commission = llm_response.commission
+        calculation = llm_response.calculation
+        response = llm_response.response
+        print(f"Commission is {commission}, Calculation is {calculation}, Response is {response}")
+        
+        # Return the updated state with the category
+        return{
+            "lnode": "initial_classifier", 
+            "responseToUser": f"{response} \n\n Source: {calculation}.\n Commission: {commission}",
+            "category": calculation
+        }
+        
         print("commission agent")
 
     # Placeholder function for the contest agent
@@ -99,12 +173,3 @@ class salesCompAgent():
     # Placeholder function for the clarify agent
     def clarify_agent(self, state: AgentState):
         print("clarify agent")
-
-    # Main router function to direct to the appropriate agent based on the category
-    def main_router(self, state: AgentState):
-        my_category = state['category']
-        if my_category in VALID_CATEGORIES:
-            return my_category
-        else:
-            print(f"unknown category: {my_category}")
-            return END

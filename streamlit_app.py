@@ -52,10 +52,10 @@ def start_chat():
             for k,v in s.items():
                 if DEBUGGING:
                     print(f"Key: {k}, Value: {v}")
-                if resp := v.get("responseToUser"):
-                    with st.chat_message("assistant", avatar=avatars["assistant"]):
-                        st.write(resp)
-                    st.session_state.messages.append({"role": "assistant", "content": resp})
+            if resp := v.get("responseToUser"):
+                with st.chat_message("assistant", avatar=avatars["assistant"]):
+                    st.write(resp)
+                st.session_state.messages.append({"role": "assistant", "content": resp})
 
 if __name__ == '__main__':
     start_chat()

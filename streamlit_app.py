@@ -44,7 +44,7 @@ def start_chat():
         thread={"configurable":{"thread_id":thread_id}}
         
         # Stream responses from the agent
-        for s in abot.graph.stream({'initialMessage':prompt},thread):
+        for s in abot.graph.stream({'initialMessage': prompt}, thread):
             #st.sidebar.write(abot.graph.get_state(thread))
             if DEBUGGING:
                 print(f"GRAPH RUN: {s}")

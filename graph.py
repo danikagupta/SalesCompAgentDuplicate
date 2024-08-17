@@ -27,6 +27,16 @@ class CommissionResponse(BaseModel):
     calculation: str
     response: str
 
+class ContestResponse(BaseModel):
+    contestUrl: str
+    contestRules: str
+    response: str
+
+def get_contest_info():
+        with open('contestrules.txt', 'r') as file:
+            contestrules = file.read()
+        return contestrules
+
 # Define valid categories
 VALID_CATEGORIES = ["policy", "commission", "contest", "ticket", "clarify"]
 
@@ -63,7 +73,7 @@ class salesCompAgent():
     # Initial classifier function to categorize user messages
     def initial_classifier(self, state: AgentState):
         print("initial classifier")
-        classifier_prompt = f"""
+        CLASSIFIER_PROMPT = f"""
         You are an expert at customer service in sales operations. Please classify the customer
         requests as follows:
         1) If the request is a question about sales policies, category is 'policy'
@@ -75,7 +85,7 @@ class salesCompAgent():
 
         # Invoke the model with the classifier prompt
         llm_response = self.model.with_structured_output(Category).invoke([
-            SystemMessage(content=classifier_prompt),
+            SystemMessage(content=CLASSIFIER_PROMPT),
             HumanMessage(content=state['initialMessage']),
         ])
 
@@ -98,10 +108,10 @@ class salesCompAgent():
             print(f"unknown category: {my_category}")
             return END
 
-    # Defining Policy Agent function
+    # Policy agent function to answer policy related queries
     def policy_agent(self, state: AgentState):
         POLICY_PROMPT = f"""
-        You are a Sales Compensation Policy expert. You understand four policies related
+        You are a sales compensation policy expert. You understand four policies related
         sales compensation. Based on user's query, you would decide which policy to use. 
         The polices are:
         1) Minimum commission guarantee
@@ -130,7 +140,7 @@ class salesCompAgent():
             "category": policy
         }
 
-    # Defining Commission Agent function
+    # Commission Agent function to answer commission related queries
     def commission_agent(self, state: AgentState):
         COMMISSION_PROMPT = f"""
         You are a Sales Commissions expert. Users will ask you about what their commission
@@ -164,6 +174,33 @@ class salesCompAgent():
 
     # Placeholder function for the contest agent
     def contest_agent(self, state: AgentState):
+        CONTEST_PROMPT = f"""
+        You are a Sales Commissions expert. Users will ask you about how to start a sales contest.
+        You will send them a URL for a Google form to submit.
+        Please follow the contest rules as defined here: 
+        {get_contest_info()}
+        Please provide user instructions to fill out the Google form.      
+        """
+        print("contest agent")
+
+        # Invoke the model with the commission agent prompt
+        llm_response = self.model.with_structured_output(ContestResponse).invoke([
+            SystemMessage(content=CONTEST_PROMPT),
+            HumanMessage(content=state['initialMessage']),
+        ])
+
+        contestUrl = llm_response.contestUrl
+        contestRules = llm_response.contestRules
+        response = llm_response.response
+        print(f"Contest URL: {contestUrl}")
+        
+        # Return the updated state with the category
+        return{
+            "lnode": "initial_classifier", 
+            "responseToUser": f"Please submit the contest form here: {contestUrl}",
+            "category": "contest"
+        }
+        
         print("contest agent")
 
     # Placeholder function for the ticket agent
@@ -173,3 +210,5 @@ class salesCompAgent():
     # Placeholder function for the clarify agent
     def clarify_agent(self, state: AgentState):
         print("clarify agent")
+
+    

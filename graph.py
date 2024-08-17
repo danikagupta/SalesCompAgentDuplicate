@@ -1,8 +1,8 @@
 from langchain_openai import ChatOpenAI
 from typing import TypedDict, Annotated, List, Dict
 from langgraph.graph import StateGraph, END
-import sqlite3
-from langgraph.checkpoint.sqlite import SqliteSaver
+#import sqlite3
+#from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 
@@ -30,6 +30,10 @@ class CommissionResponse(BaseModel):
 class ContestResponse(BaseModel):
     contestUrl: str
     contestRules: str
+    response: str
+
+class TicketResponse(BaseModel):
+    ticket: str
     response: str
 
 def get_contest_info():
@@ -67,8 +71,10 @@ class salesCompAgent():
         builder.add_edge("clarify", END)
 
         # Set up in-memory SQLite database for state saving
-        memory = SqliteSaver(conn=sqlite3.connect(":memory:", check_same_thread=False))
-        self.graph = builder.compile(checkpointer=memory)
+        #memory = SqliteSaver(conn=sqlite3.connect(":memory:", check_same_thread=False))
+        #self.graph = builder.compile(checkpointer=memory)
+
+        self.graph = builder.compile()
 
     # Initial classifier function to categorize user messages
     def initial_classifier(self, state: AgentState):
@@ -162,7 +168,8 @@ class salesCompAgent():
         calculation = llm_response.calculation
         response = llm_response.response
         print(f"Commission is {commission}, Calculation is {calculation}, Response is {response}")
-        
+        print("commission agent")
+
         # Return the updated state with the category
         return{
             "lnode": "initial_classifier", 
@@ -170,7 +177,7 @@ class salesCompAgent():
             "category": calculation
         }
         
-        print("commission agent")
+        
 
     # Placeholder function for the contest agent
     def contest_agent(self, state: AgentState):
@@ -193,7 +200,8 @@ class salesCompAgent():
         contestRules = llm_response.contestRules
         response = llm_response.response
         print(f"Contest URL: {contestUrl}")
-        
+        print("contest agent")
+
         # Return the updated state with the category
         return{
             "lnode": "initial_classifier", 
@@ -201,11 +209,39 @@ class salesCompAgent():
             "category": "contest"
         }
         
-        print("contest agent")
+        
 
     # Placeholder function for the ticket agent
     def ticket_agent(self, state: AgentState):
+        TICKET_PROMPT = f"""
+        You are a Sales Commissions expert. Users will ask you about what their commission
+        will be for a particular deal. You can assume their on-target incentive to be $100000
+        and their annual quota to be $2000000. Also note that Commission is equal to on-target
+        incentive divided by annual quota. 
+        
+        Please provide user commission as well as explain how you computed it.      
+        """
         print("ticket agent")
+
+        # Invoke the model with the commission agent prompt
+        llm_response = self.model.with_structured_output(TicketResponse).invoke([
+            SystemMessage(content=TICKET_PROMPT),
+            HumanMessage(content=state['initialMessage']),
+        ])
+
+        ticket = llm_response.ticket
+        response = llm_response.response
+        print(f"ticket: {ticket} response: {response}")
+        
+        # Return the updated state with the category
+        return{
+            "lnode": "initial_classifier", 
+            "responseToUser": f"ServiceNow email address placeholder",
+            "category": "ticket"
+        }
+        
+        
+        
 
     # Placeholder function for the clarify agent
     def clarify_agent(self, state: AgentState):

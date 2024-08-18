@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import random
 from graph import salesCompAgent
+from utils import show_navigation
 
 # Set environment variables
 os.environ["LANGCHAIN_TRACING_V2"]="true"
@@ -13,6 +14,7 @@ DEBUGGING=0
 # This function sets up the chat interface and handles user interactions
 def start_chat():
     st.title('Sales Comp Agent')
+    show_navigation()
     avatars={"system":"💻🧠","user":"🧑‍💼","assistant":"🎓"}
     
     # Keeping context of conversations, checks if there is anything in messages array

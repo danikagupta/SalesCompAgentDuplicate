@@ -1,3 +1,5 @@
+import streamlit as st
+from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from typing import TypedDict, Annotated, List, Dict
 from langgraph.graph import StateGraph, END
@@ -5,6 +7,7 @@ from langgraph.graph import StateGraph, END
 #from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
+from pinecone import Pinecone
 
 # Define the structure of the agent state using TypedDict
 class AgentState(TypedDict):
@@ -49,6 +52,16 @@ class salesCompAgent():
     def __init__(self, api_key):
         # Initialize the model with the given API key
         self.model = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=api_key)
+
+        #Pinecone configurtion using Streamlit secrets
+        self.pinecone_api_key = st.secrets['PINECONE_API_KEY']
+        self.pinecone_env = st.secrets['PINECONE_API_ENV']
+        self.pinecone_index_name = st.secrets['PINECONE_INDEX_NAME']
+        self.client = OpenAI(api_key=api_key)
+
+        # Initialize Pinecone once
+        self.pinecone = Pinecone(api_key=self.pinecone_api_key)
+        self.index = self.pinecone.Index(self.pinecone_index_name)
 
         # Build the state graph
         builder = StateGraph(AgentState)
@@ -116,35 +129,68 @@ class salesCompAgent():
 
     # Policy agent function to answer policy related queries
     def policy_agent(self, state: AgentState):
-        POLICY_PROMPT = f"""
-        You are a sales compensation policy expert. You understand four policies related
-        sales compensation. Based on user's query, you would decide which policy to use. 
-        The polices are:
-        1) Minimum commission guarantee
-        2) Air cover bonus
-        3) Windfall activation
-        4) Leave of absence
+        # Retrieve augmented content using Pinecone
+        embedding = self.client.embeddings.create(model="text-embedding-ada-002", input=state['initialMessage']).data[0].embedding
+        results = self.index.query(vector=embedding, top_k=3, namespace="", include_metadata=True)
+        retrieved_content = [r['metadata']['text'] for r in results['matches']]
 
-        Please provide user response as well as the policy used to decide.      
+        prompt_guidance = f"""
+        Please guide the user with the following information:
+        {retrieved_content}
+        The user's question was: {state['initialMessage']}
         """
-        print("policy agent")
 
-        # Invoke the model with the policy agent prompt
-        llm_response = self.model.with_structured_output(PolicyResponse).invoke([
-            SystemMessage(content=POLICY_PROMPT),
-            HumanMessage(content=state['initialMessage']),
-        ])
+        # Generate the response using the LLM
+        llm_response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful and patient guide based in Silicon Valley."},
+                {"role": "user", "content": prompt_guidance}
+            ]
+        )
 
-        policy = llm_response.policy
-        response = llm_response.response
-        print(f"Policy is: {policy}, Response is: {response}")
+        # Access the content attribute directly
+        full_response = llm_response.choices[0].message.content
         
         # Return the updated state with the category
-        return{
-            "lnode": "initial_classifier", 
-            "responseToUser": f"{response} \n\n Source: {policy}",
-            "category": policy
+        return {
+            "lnode": "policy_agent", 
+            "responseToUser": full_response,
+            "category": "policy"
         }
+        
+        
+        
+        #POLICY_PROMPT = f"""
+        #You are a sales compensation policy expert. You understand four policies related
+        #sales compensation. Based on user's query, you would decide which policy to use. 
+        #The polices are:
+        #1) Minimum commission guarantee
+        #2) Air cover bonus
+        #3) Windfall activation
+        #4) Leave of absence
+
+        #Please provide user response as well as the policy used to decide.      
+        #"""
+        #print("policy agent")
+
+        # Invoke the model with the policy agent prompt
+        #llm_response = self.model.with_structured_output(PolicyResponse).invoke([
+        #   SystemMessage(content=POLICY_PROMPT),
+        #   HumanMessage(content=state['initialMessage']),
+        #])
+
+        #policy = llm_response.policy
+        #response = llm_response.response
+        #print(f"Policy is: {policy}, Response is: {response}")
+        
+        # Return the updated state with the category
+        #return{
+        #   "lnode": "initial_classifier", 
+        #   "responseToUser": f"{response} \n\n Source: {policy}",
+        #   "category": policy
+        
+        #}
 
     # Commission Agent function to answer commission related queries
     def commission_agent(self, state: AgentState):

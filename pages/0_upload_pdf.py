@@ -12,7 +12,7 @@ from openai import OpenAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import PyPDFLoader
 
-from utils import show_navigation
+from src.utils import show_navigation
 show_navigation()
 
 LOGGER = get_logger(__name__)

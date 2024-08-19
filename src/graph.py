@@ -8,6 +8,8 @@ from langgraph.graph import StateGraph, END
 from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 from pinecone import Pinecone
+from src.policy_agent import PolicyAgent
+from src.commission_agent import CommissionAgent
 
 # Define the structure of the agent state using TypedDict
 class AgentState(TypedDict):
@@ -50,24 +52,28 @@ VALID_CATEGORIES = ["policy", "commission", "contest", "ticket", "clarify"]
 # Define the salesCompAgent class
 class salesCompAgent():
     def __init__(self, api_key):
-        # Initialize the model with the given API key
+        # Initialize the ChatOpenAI model (from LangChain) and OpenAI client with the given API key
         self.model = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=api_key)
+        self.client = OpenAI(api_key=api_key)
 
         #Pinecone configurtion using Streamlit secrets
         self.pinecone_api_key = st.secrets['PINECONE_API_KEY']
         self.pinecone_env = st.secrets['PINECONE_API_ENV']
         self.pinecone_index_name = st.secrets['PINECONE_INDEX_NAME']
-        self.client = OpenAI(api_key=api_key)
 
         # Initialize Pinecone once
         self.pinecone = Pinecone(api_key=self.pinecone_api_key)
         self.index = self.pinecone.Index(self.pinecone_index_name)
 
+        # Initialize the PolicyAgent and CommissionAgent
+        self.policy_agent_class = PolicyAgent(self.client, self.index)
+        self.commission_agent_class = CommissionAgent(self.model, self.index)
+
         # Build the state graph
         builder = StateGraph(AgentState)
         builder.add_node("classifier", self.initial_classifier)
-        builder.add_node("policy", self.policy_agent)
-        builder.add_node("commission", self.commission_agent)
+        builder.add_node("policy", self.policy_agent_class.policy_agent)
+        builder.add_node("commission", self.commission_agent_class.commission_agent)
         builder.add_node("contest", self.contest_agent)
         builder.add_node("ticket", self.ticket_agent)
         builder.add_node("clarify", self.clarify_agent)
@@ -92,15 +98,36 @@ class salesCompAgent():
     # Initial classifier function to categorize user messages
     def initial_classifier(self, state: AgentState):
         print("initial classifier")
+        
         CLASSIFIER_PROMPT = f"""
-        You are an expert at customer service in sales operations. Please classify the customer
-        requests as follows:
-        1) If the request is a question about sales policies, category is 'policy'
-        2) If the request is a question about user's commissions, category is 'commission'
-        3) If the request is a question about contests, category is 'contest'
-        4) If the request is a question about tickets, category is 'ticket'
-        5) Otherwise ask the user to clarify, category is 'clarify'
-        """
+You are an expert in sales operations with deep knowledge of sales compensation. Your job is to accurately classify customer requests into one of the following categories based on context and content, even if specific keywords are not used.
+
+1) **policy**: Select this category if the request is related to any formal sales compensation rules or guidelines, even if the word "policy" is not mentioned. This includes topics like windfall, minimum commission guarantees, bonus structures, or leave-related questions.
+   - Example: "What happens to my commission if I go on leave?" (This is about policy.)
+   - Example: "Is there any guarantee for minimum commission guarantee or MCG?" (This is about policy.)
+   - Example: "Can you tell me what is a windfall?" (This is about policy.)
+   - Example: "What is a teaming agreement?" (This is about policy.)
+   - Example: "What is a split or commission split?" (This is about policy.)
+
+2) **commission**: Select this category if the request involves the calculation or details of the user's sales commission, such as earnings, rates, or specific deal-related inquiries.
+   - Example: "How much commission will I earn on a $500,000 deal?" (This is about commission.)
+   - Example: "What is the new commission rate?" (This is about commission.)
+
+3) **contest**: Select this category if the request is about sales contests, such as rules, participation, or rewards.
+   - Example: "How do I enter the Q3 sales contest?" (This is about contests.)
+   - Example: "What are the rules for the upcoming contest?" (This is about contests.)
+
+4) **ticket**: Select this category if the request involves issues or problems that need to be reported, such as system issues, payment errors, or situations where a service ticket is required.
+   - Example: "I can't access my commission report." (This is about a ticket.)
+   - Example: "My commission was calculated incorrectly." (This is about a ticket.)
+
+5) **clarify**: Select this category if the request is unclear, ambiguous, or does not fit into the above categories. Ask the user for more details.
+   - Example: "Can you clarify your question?" (This is a request for clarification.)
+
+Remember to consider the context and content of the request, even if specific keywords like 'policy' or 'commission' are not used. 
+"""
+
+        
 
         # Invoke the model with the classifier prompt
         llm_response = self.model.with_structured_output(Category).invoke([
@@ -127,102 +154,6 @@ class salesCompAgent():
             print(f"unknown category: {my_category}")
             return END
 
-    # Policy agent function to answer policy related queries
-    def policy_agent(self, state: AgentState):
-        # Retrieve augmented content using Pinecone
-        embedding = self.client.embeddings.create(model="text-embedding-ada-002", input=state['initialMessage']).data[0].embedding
-        results = self.index.query(vector=embedding, top_k=3, namespace="", include_metadata=True)
-        retrieved_content = [r['metadata']['text'] for r in results['matches']]
-
-        prompt_guidance = f"""
-        Please guide the user with the following information:
-        {retrieved_content}
-        The user's question was: {state['initialMessage']}
-        """
-
-        # Generate the response using the LLM
-        llm_response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful and patient guide based in Silicon Valley."},
-                {"role": "user", "content": prompt_guidance}
-            ]
-        )
-
-        # Access the content attribute directly
-        full_response = llm_response.choices[0].message.content
-        
-        # Return the updated state with the category
-        return {
-            "lnode": "policy_agent", 
-            "responseToUser": full_response,
-            "category": "policy"
-        }
-        
-        
-        
-        #POLICY_PROMPT = f"""
-        #You are a sales compensation policy expert. You understand four policies related
-        #sales compensation. Based on user's query, you would decide which policy to use. 
-        #The polices are:
-        #1) Minimum commission guarantee
-        #2) Air cover bonus
-        #3) Windfall activation
-        #4) Leave of absence
-
-        #Please provide user response as well as the policy used to decide.      
-        #"""
-        #print("policy agent")
-
-        # Invoke the model with the policy agent prompt
-        #llm_response = self.model.with_structured_output(PolicyResponse).invoke([
-        #   SystemMessage(content=POLICY_PROMPT),
-        #   HumanMessage(content=state['initialMessage']),
-        #])
-
-        #policy = llm_response.policy
-        #response = llm_response.response
-        #print(f"Policy is: {policy}, Response is: {response}")
-        
-        # Return the updated state with the category
-        #return{
-        #   "lnode": "initial_classifier", 
-        #   "responseToUser": f"{response} \n\n Source: {policy}",
-        #   "category": policy
-        
-        #}
-
-    # Commission Agent function to answer commission related queries
-    def commission_agent(self, state: AgentState):
-        COMMISSION_PROMPT = f"""
-        You are a Sales Commissions expert. Users will ask you about what their commission
-        will be for a particular deal. You can assume their on-target incentive to be $100000
-        and their annual quota to be $2000000. Also note that Commission is equal to on-target
-        incentive divided by annual quota. 
-        
-        Please provide user commission as well as explain how you computed it.      
-        """
-        print("commission agent")
-
-        # Invoke the model with the commission agent prompt
-        llm_response = self.model.with_structured_output(CommissionResponse).invoke([
-            SystemMessage(content=COMMISSION_PROMPT),
-            HumanMessage(content=state['initialMessage']),
-        ])
-
-        commission = llm_response.commission
-        calculation = llm_response.calculation
-        response = llm_response.response
-        print(f"Commission is {commission}, Calculation is {calculation}, Response is {response}")
-        print("commission agent")
-
-        # Return the updated state with the category
-        return{
-            "lnode": "initial_classifier", 
-            "responseToUser": f"{response} \n\n Source: {calculation}.\n Commission: {commission}",
-            "category": calculation
-        }
-        
         
 
     # Placeholder function for the contest agent

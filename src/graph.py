@@ -3,13 +3,14 @@ from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from typing import TypedDict, Annotated, List, Dict
 from langgraph.graph import StateGraph, END
-#import sqlite3
-#from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 from pinecone import Pinecone
 from src.policy_agent import PolicyAgent
 from src.commission_agent import CommissionAgent
+from src.contest_agent import ContestAgent
+from src.ticket_agent import TicketAgent 
+from src.clarify_agent import ClarifyAgent
 
 # Define the structure of the agent state using TypedDict
 class AgentState(TypedDict):
@@ -65,18 +66,21 @@ class salesCompAgent():
         self.pinecone = Pinecone(api_key=self.pinecone_api_key)
         self.index = self.pinecone.Index(self.pinecone_index_name)
 
-        # Initialize the PolicyAgent and CommissionAgent
+        # Initialize the PolicyAgent, CommissionAgent, ContestAgent, TicketAgent
         self.policy_agent_class = PolicyAgent(self.client, self.index)
         self.commission_agent_class = CommissionAgent(self.model, self.index)
+        self.contest_agent_class = ContestAgent(self.model) # ContestAgent does not need Pinecone
+        self.ticket_agent_class = TicketAgent(self.model)
+        self.clarify_agent_class = ClarifyAgent(self.model, self) # Capable of passing reference to the main agent
 
         # Build the state graph
         builder = StateGraph(AgentState)
         builder.add_node("classifier", self.initial_classifier)
         builder.add_node("policy", self.policy_agent_class.policy_agent)
         builder.add_node("commission", self.commission_agent_class.commission_agent)
-        builder.add_node("contest", self.contest_agent)
-        builder.add_node("ticket", self.ticket_agent)
-        builder.add_node("clarify", self.clarify_agent)
+        builder.add_node("contest", self.contest_agent_class.contest_agent)
+        builder.add_node("ticket", self.ticket_agent_class.ticket_agent)
+        builder.add_node("clarify", self.clarify_agent_class.clarify_agent)
 
         # Set the entry point and add conditional edges
         builder.set_entry_point("classifier")
@@ -126,8 +130,7 @@ You are an expert in sales operations with deep knowledge of sales compensation.
 
 Remember to consider the context and content of the request, even if specific keywords like 'policy' or 'commission' are not used. 
 """
-
-        
+  
 
         # Invoke the model with the classifier prompt
         llm_response = self.model.with_structured_output(Category).invoke([
@@ -153,75 +156,3 @@ Remember to consider the context and content of the request, even if specific ke
         else:
             print(f"unknown category: {my_category}")
             return END
-
-        
-
-    # Placeholder function for the contest agent
-    def contest_agent(self, state: AgentState):
-        CONTEST_PROMPT = f"""
-        You are a Sales Commissions expert. Users will ask you about how to start a sales contest.
-        You will send them a URL for a Google form to submit.
-        Please follow the contest rules as defined here: 
-        {get_contest_info()}
-        Please provide user instructions to fill out the Google form.      
-        """
-        print("contest agent")
-
-        # Invoke the model with the commission agent prompt
-        llm_response = self.model.with_structured_output(ContestResponse).invoke([
-            SystemMessage(content=CONTEST_PROMPT),
-            HumanMessage(content=state['initialMessage']),
-        ])
-
-        contestUrl = llm_response.contestUrl
-        contestRules = llm_response.contestRules
-        response = llm_response.response
-        print(f"Contest URL: {contestUrl}")
-        print("contest agent")
-
-        # Return the updated state with the category
-        return{
-            "lnode": "initial_classifier", 
-            "responseToUser": f"Please submit the contest form here: {contestUrl}",
-            "category": "contest"
-        }
-        
-        
-
-    # Placeholder function for the ticket agent
-    def ticket_agent(self, state: AgentState):
-        TICKET_PROMPT = f"""
-        You are a Sales Commissions expert. Users will ask you about what their commission
-        will be for a particular deal. You can assume their on-target incentive to be $100000
-        and their annual quota to be $2000000. Also note that Commission is equal to on-target
-        incentive divided by annual quota. 
-        
-        Please provide user commission as well as explain how you computed it.      
-        """
-        print("ticket agent")
-
-        # Invoke the model with the commission agent prompt
-        llm_response = self.model.with_structured_output(TicketResponse).invoke([
-            SystemMessage(content=TICKET_PROMPT),
-            HumanMessage(content=state['initialMessage']),
-        ])
-
-        ticket = llm_response.ticket
-        response = llm_response.response
-        print(f"ticket: {ticket} response: {response}")
-        
-        # Return the updated state with the category
-        return{
-            "lnode": "initial_classifier", 
-            "responseToUser": f"ServiceNow email address placeholder",
-            "category": "ticket"
-        }
-        
-        
-        
-
-    # Placeholder function for the clarify agent
-    def clarify_agent(self, state: AgentState):
-        print("clarify agent")
-
-    

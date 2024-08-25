@@ -9,8 +9,12 @@ langchain
 langchain_community
 langchain-core
 langgraph
-
 langchain_openai
+
+google-auth
+google-auth-oauthlib
+google-api-python-client
+
 
 altair
 numpy

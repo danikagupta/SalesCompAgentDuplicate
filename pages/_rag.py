@@ -1,4 +1,3 @@
-#checking
 import os
 import hashlib
 import PyPDF2
@@ -10,7 +9,6 @@ from pydrive.drive import GoogleDrive
 from pinecone import Pinecone
 from openai import OpenAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-
 
 LOGGER = get_logger(__name__)
 
@@ -70,19 +68,23 @@ def embed(text: str, filename: str):
         }
         index.upsert([(hash, embedding, metadata)])
 
-def process_and_upload_from_drive(file_ids: list):
-    """Process PDF files from Google Drive and upload embeddings to Pinecone."""
-    for file_id in file_ids:
+def process_and_upload_from_folder(folder_id: str):
+    """Process PDF files from a Google Drive folder and upload embeddings to Pinecone."""
+    file_list = drive.ListFile({'q': f"'{folder_id}' in parents and trashed=false"}).GetList()
+    for file in file_list:
+        file_id = file['id']
+        file_name = file['title']
+        LOGGER.info(f"Processing file: {file_name} (ID: {file_id})")
+        
         # Download the file from Google Drive
-        file = drive.CreateFile({'id': file_id})
-        file.GetContentFile(file['title'])
-        text = pdf_to_text(file['title'])
+        file.GetContentFile(file_name)
+        text = pdf_to_text(file_name)
 
         # Generate and store embeddings in Pinecone
-        embed(text, file['title'])
+        embed(text, file_name)
 
-# Example usage: Process specific Google Drive files
-file_ids = ["your-google-drive-file-id-1", "your-google-drive-file-id-2"]
-process_and_upload_from_drive(file_ids)
+# Example usage: Process all files in the specified Google Drive folder
+folder_id = "1J1wKGZJQIKen33xaVEBI8FpK8B4WQzIJ"  # Replace with your folder ID
+process_and_upload_from_folder(folder_id)
 
-st.markdown("# Documents processed and embeddings uploaded to Pinecone.")
+st.markdown("# Documents in the folder processed and embeddings uploaded to Pinecone.")

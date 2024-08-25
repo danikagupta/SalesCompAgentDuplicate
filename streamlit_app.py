@@ -1,4 +1,3 @@
-#placeholder
 import streamlit as st
 import os
 import random

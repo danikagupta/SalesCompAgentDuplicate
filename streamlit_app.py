@@ -1,10 +1,11 @@
+# streamlit_app.py
 import streamlit as st
 import os
 import random
 from src.graph import salesCompAgent
 #from src.utils import show_navigation
 
-# Set environment variables
+# Set environment variables for Langsmith and Langchain
 os.environ["LANGCHAIN_TRACING_V2"]="true"
 os.environ["LANGCHAIN_API_KEY"]=st.secrets['LANGCHAIN_API_KEY']
 os.environ["LANGSMITH_API_KEY"]=st.secrets['LANGCHAIN_API_KEY']

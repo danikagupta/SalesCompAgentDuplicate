@@ -74,30 +74,30 @@ class salesCompAgent():
         self.clarify_agent_class = ClarifyAgent(self.model, self) # Capable of passing reference to the main agent
 
         # Build the state graph
-        builder = StateGraph(AgentState)
-        builder.add_node("classifier", self.initial_classifier)
-        builder.add_node("policy", self.policy_agent_class.policy_agent)
-        builder.add_node("commission", self.commission_agent_class.commission_agent)
-        builder.add_node("contest", self.contest_agent_class.contest_agent)
-        builder.add_node("ticket", self.ticket_agent_class.ticket_agent)
-        builder.add_node("clarify", self.clarify_agent_class.clarify_agent)
+        workflow = StateGraph(AgentState)
+        workflow.add_node("classifier", self.initial_classifier)
+        workflow.add_node("policy", self.policy_agent_class.policy_agent)
+        workflow.add_node("commission", self.commission_agent_class.commission_agent)
+        workflow.add_node("contest", self.contest_agent_class.contest_agent)
+        workflow.add_node("ticket", self.ticket_agent_class.ticket_agent)
+        workflow.add_node("clarify", self.clarify_agent_class.clarify_agent)
 
         # Set the entry point and add conditional edges
-        builder.set_entry_point("classifier")
-        builder.add_conditional_edges("classifier", self.main_router)
+        workflow.set_entry_point("classifier")
+        workflow.add_conditional_edges("classifier", self.main_router)
 
         # Define end points for each node
-        builder.add_edge("policy", END)
-        builder.add_edge("commission", END)
-        builder.add_edge("contest", END)
-        builder.add_edge("ticket", END)
-        builder.add_edge("clarify", END)
+        workflow.add_edge("policy", END)
+        workflow.add_edge("commission", END)
+        workflow.add_edge("contest", END)
+        workflow.add_edge("ticket", END)
+        workflow.add_edge("clarify", END)
 
         # Set up in-memory SQLite database for state saving
         #memory = SqliteSaver(conn=sqlite3.connect(":memory:", check_same_thread=False))
         #self.graph = builder.compile(checkpointer=memory)
 
-        self.graph = builder.compile()
+        self.graph = workflow.compile()
 
     # Initial classifier function to categorize user messages
     def initial_classifier(self, state: AgentState):

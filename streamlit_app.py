@@ -1,9 +1,8 @@
 # streamlit_app.py
-import streamlit as st
 import os
 import random
+import streamlit as st
 from src.graph import salesCompAgent
-#from src.utils import show_navigation
 
 # Set environment variables for Langsmith and Langchain
 os.environ["LANGCHAIN_TRACING_V2"]="true"
@@ -15,7 +14,6 @@ DEBUGGING=0
 # This function sets up the chat interface and handles user interactions
 def start_chat():
     st.title('Sales Comp Agent')
-    #show_navigation()
     avatars={"system":"💻🧠","user":"🧑‍💼","assistant":"🎓"}
     
     # Keeping context of conversations, checks if there is anything in messages array
@@ -28,12 +26,15 @@ def start_chat():
         st.session_state.thread_id = random.randint(1000, 9999)
     thread_id = st.session_state.thread_id
 
-    # Display previous messages
+    # Display previous messages in the chat history by keeping track of the messages array
+    # in the session state. 
     for message in st.session_state.messages:
         if message["role"] != "system":
             avatar=avatars[message["role"]]
             with st.chat_message(message["role"], avatar=avatar):
                 st.markdown(message["content"])
+
+    
 
     # Handle new user input. Note: walrus operator serves two functions, it checks if
     # the user entered any input. If yes, it returns that value and assigns to 'prompt'.
@@ -42,12 +43,15 @@ def start_chat():
         with st.chat_message("user", avatar=avatars["user"]):
             st.markdown(prompt)
         
-        # Initialize salesCompAgent
-        abot=salesCompAgent(st.secrets['OPENAI_API_KEY'])
+        print(f"STREAMLITAPP  st.session_state is {st.session_state}")
+
+        # Initialize salesCompAgent in graph.py 
+        app = salesCompAgent(st.secrets['OPENAI_API_KEY'])
         thread={"configurable":{"thread_id":thread_id}}
         
         # Stream responses from the agent
-        for s in abot.graph.stream({'initialMessage': prompt}, thread):
+        for s in app.graph.stream({'initialMessage': prompt, 
+        'sessionState': st.session_state}, thread):
             #st.sidebar.write(abot.graph.get_state(thread))
             if DEBUGGING:
                 print(f"GRAPH RUN: {s}")

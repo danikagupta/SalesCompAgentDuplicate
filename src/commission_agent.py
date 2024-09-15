@@ -33,12 +33,11 @@ class CommissionAgent:
         Step 3: Calculate Base Commission Rate (BCR). BCR is equal to on-target
         incentive divided by annual quota. 
         
-        Step 4: Comput the commission by multiplying BCR by deal value. 
+        Step 4: Compute the commission by multiplying BCR by deal value. 
 
         Step 5: Please provide the user with their expected commission in a properly formatted sentence 
         and explain how it was calculated.
         
-        The user's question was: {user_query}
         
         """
         

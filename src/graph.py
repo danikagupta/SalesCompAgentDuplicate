@@ -11,6 +11,7 @@ from src.commission_agent import CommissionAgent
 from src.contest_agent import ContestAgent
 from src.ticket_agent import TicketAgent 
 from src.clarify_agent import ClarifyAgent
+from src.create_llm_message import create_llm_message
 
 # Define the structure of the agent state using TypedDict
 class AgentState(TypedDict):
@@ -19,6 +20,7 @@ class AgentState(TypedDict):
     responseToUser: str
     lnode: str
     category: str
+    sessionState: Dict
 
 # Define the structure for category classification
 class Category(BaseModel):
@@ -54,10 +56,13 @@ VALID_CATEGORIES = ["policy", "commission", "contest", "ticket", "clarify"]
 class salesCompAgent():
     def __init__(self, api_key):
         # Initialize the ChatOpenAI model (from LangChain) and OpenAI client with the given API key
+        # ChatOpenAI is used for chat interactions
+        # OpenAI is used for creating embeddings
         self.model = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=api_key)
         self.client = OpenAI(api_key=api_key)
 
         #Pinecone configurtion using Streamlit secrets
+        # Pinecone is used for storing and querying embeddings
         self.pinecone_api_key = st.secrets['PINECONE_API_KEY']
         self.pinecone_env = st.secrets['PINECONE_API_ENV']
         self.pinecone_index_name = st.secrets['PINECONE_INDEX_NAME']
@@ -66,7 +71,7 @@ class salesCompAgent():
         self.pinecone = Pinecone(api_key=self.pinecone_api_key)
         self.index = self.pinecone.Index(self.pinecone_index_name)
 
-        # Initialize the PolicyAgent, CommissionAgent, ContestAgent, TicketAgent
+        # Initialize the PolicyAgent, CommissionAgent, ContestAgent, TicketAgent, ClarifyAgent
         self.policy_agent_class = PolicyAgent(self.client, self.index)
         self.commission_agent_class = CommissionAgent(self.model, self.index)
         self.contest_agent_class = ContestAgent(self.model) # ContestAgent does not need Pinecone
@@ -131,6 +136,7 @@ You are an expert in sales operations with deep knowledge of sales compensation.
 Remember to consider the context and content of the request, even if specific keywords like 'policy' or 'commission' are not used. 
 """
   
+        abc = create_llm_message(CLASSIFIER_PROMPT, state['sessionState'])
 
         # Invoke the model with the classifier prompt
         llm_response = self.model.with_structured_output(Category).invoke([

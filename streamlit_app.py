@@ -4,6 +4,9 @@ import random
 import streamlit as st
 from src.graph import salesCompAgent
 
+
+import warnings
+
 # Set environment variables for Langsmith and Langchain
 os.environ["LANGCHAIN_TRACING_V2"]="true"
 os.environ["LANGCHAIN_API_KEY"]=st.secrets['LANGCHAIN_API_KEY']
@@ -13,6 +16,7 @@ DEBUGGING=0
 
 # This function sets up the chat interface and handles user interactions
 def start_chat():
+    warnings.filterwarnings("ignore", category=UserWarning)
     st.title('Sales Comp Agent')
     avatars={"system":"💻🧠","user":"🧑‍💼","assistant":"🎓"}
     
@@ -43,7 +47,8 @@ def start_chat():
         with st.chat_message("user", avatar=avatars["user"]):
             st.markdown(prompt)
         
-        print(f"STREAMLITAPP  st.session_state is {st.session_state}")
+        msgs=st.session_state.messages
+        print(f"STREAMLITAPP  msgs is {msgs}")
 
         # Initialize salesCompAgent in graph.py 
         app = salesCompAgent(st.secrets['OPENAI_API_KEY'])

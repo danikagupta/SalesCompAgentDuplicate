@@ -3,7 +3,7 @@ from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from typing import TypedDict, Annotated, List, Dict
 from langgraph.graph import StateGraph, END
-from langchain_core.pydantic_v1 import BaseModel
+from pydantic import BaseModel
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 from pinecone import Pinecone
 from src.policy_agent import PolicyAgent
@@ -12,6 +12,7 @@ from src.contest_agent import ContestAgent
 from src.ticket_agent import TicketAgent 
 from src.clarify_agent import ClarifyAgent
 from src.create_llm_message import create_llm_message
+
 
 # Define the structure of the agent state using TypedDict
 class AgentState(TypedDict):
@@ -107,6 +108,9 @@ class salesCompAgent():
     # Initial classifier function to categorize user messages
     def initial_classifier(self, state: AgentState):
         print("initial classifier")
+        print(f"state is {state}\n******\n")
+        if 'messages' in state:
+            print(f"messages is {state['messages']}")
         
         CLASSIFIER_PROMPT = f"""
 You are an expert in sales operations with deep knowledge of sales compensation. Your job is to accurately classify customer requests into one of the following categories based on context and content, even if specific keywords are not used.
@@ -136,13 +140,17 @@ You are an expert in sales operations with deep knowledge of sales compensation.
 Remember to consider the context and content of the request, even if specific keywords like 'policy' or 'commission' are not used. 
 """
   
-        abc = create_llm_message(CLASSIFIER_PROMPT, state['sessionState'])
+        abc = create_llm_message(CLASSIFIER_PROMPT)
+        msgs=st.session_state.messages
+        print(f"GRAPHPY  msgs is {msgs}")
 
         # Invoke the model with the classifier prompt
-        llm_response = self.model.with_structured_output(Category).invoke([
-            SystemMessage(content=CLASSIFIER_PROMPT),
-            HumanMessage(content=state['initialMessage']),
-        ])
+        #llm_response = self.model.with_structured_output(Category).invoke([
+        #    SystemMessage(content=CLASSIFIER_PROMPT),
+        #    HumanMessage(content=state['initialMessage']),
+        #])
+
+        llm_response = self.model.with_structured_output(Category).invoke(abc)
 
         category = llm_response.category
         print(f"category is {category}")

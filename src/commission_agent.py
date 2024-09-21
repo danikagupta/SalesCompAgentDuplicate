@@ -41,7 +41,11 @@ class CommissionAgent:
         Step 5: Please provide the user with their expected commission in a properly formatted sentence 
         and explain how it was calculated.
         
-        
+        Please provide the response without using any LaTeX. 
+        Format any calculations or equations in simple plain text or markdown. 
+        Do not use LaTeX for formatting.
+
+        If the output includes the dollar sign, please escape it to prevent markdown rendering issues.
         """
 
         abc = create_llm_message(commission_prompt)

@@ -158,7 +158,7 @@ Remember to consider the context and content of the request, even if specific ke
         # Return the updated state with the category
         return{
             "lnode": "initial_classifier", 
-            "responseToUser": "Classifier successful",
+            #"responseToUser": "Classifier successful",
             "category": category
         }
     

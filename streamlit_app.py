@@ -48,15 +48,14 @@ def start_chat():
             st.markdown(prompt)
         
         msgs=st.session_state.messages
-        print(f"STREAMLITAPP  msgs is {msgs}")
+        #print(f"STREAMLITAPP  msgs is {msgs}")
 
-        # Initialize salesCompAgent in graph.py 
         app = salesCompAgent(st.secrets['OPENAI_API_KEY'])
         thread={"configurable":{"thread_id":thread_id}}
-        
+
         # Stream responses from the agent
         for s in app.graph.stream({'initialMessage': prompt, 
-        'sessionState': st.session_state}, thread):
+        'sessionHistory': st.session_state.messages}, thread):
             #st.sidebar.write(abot.graph.get_state(thread))
             if DEBUGGING:
                 print(f"GRAPH RUN: {s}")

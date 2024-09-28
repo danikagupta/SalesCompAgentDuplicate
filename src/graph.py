@@ -13,6 +13,8 @@ from src.ticket_agent import TicketAgent
 from src.clarify_agent import ClarifyAgent
 from src.create_llm_message import create_llm_message
 
+from langgraph.graph.message import AnyMessage, add_messages
+
 
 # Define the structure of the agent state using TypedDict
 class AgentState(TypedDict):
@@ -21,7 +23,7 @@ class AgentState(TypedDict):
     responseToUser: str
     lnode: str
     category: str
-    sessionState: Dict
+    sessionHistory: Annotated[list[AnyMessage], add_messages]
 
 # Define the structure for category classification
 class Category(BaseModel):
@@ -108,7 +110,7 @@ class salesCompAgent():
     # Initial classifier function to categorize user messages
     def initial_classifier(self, state: AgentState):
         print("initial classifier")
-        print(f"state is {state}\n******\n")
+        #print(f"state is {state}\n******\n")
         if 'messages' in state:
             print(f"messages is {state['messages']}")
         
@@ -140,9 +142,9 @@ You are an expert in sales operations with deep knowledge of sales compensation.
 Remember to consider the context and content of the request, even if specific keywords like 'policy' or 'commission' are not used. 
 """
   
-        abc = create_llm_message(CLASSIFIER_PROMPT)
+        abc = create_llm_message(CLASSIFIER_PROMPT,state['sessionHistory'])
         msgs=st.session_state.messages
-        print(f"GRAPHPY  msgs is {msgs}")
+        #print(f"GRAPHPY  msgs is {msgs}")
 
         # Invoke the model with the classifier prompt
         #llm_response = self.model.with_structured_output(Category).invoke([
@@ -159,7 +161,8 @@ Remember to consider the context and content of the request, even if specific ke
         return{
             "lnode": "initial_classifier", 
             #"responseToUser": "Classifier successful",
-            "category": category
+            "category": category,
+            "sessionHistory": f"SessionHistory: category is {category}"
         }
     
      # Main router function to direct to the appropriate agent based on the category

@@ -17,7 +17,7 @@ class CommissionAgent:
         self.model = model
         self.index = index
 
-    def generate_commission_response(self, user_query: str) -> str:
+    def generate_commission_response(self, user_query: str, session_history) -> str:
         """
         Generate a response for commission-related queries using the ChatOpenAI model.
         
@@ -48,7 +48,7 @@ class CommissionAgent:
         If the output includes the dollar sign, please escape it to prevent markdown rendering issues.
         """
 
-        abc = create_llm_message(commission_prompt)
+        abc = create_llm_message(commission_prompt,session_history)
         msgs=st.session_state.messages
         print(f"COMMISION_AGENT  msgs is {msgs}")
         llm_response = self.model.invoke(abc)
@@ -71,7 +71,7 @@ class CommissionAgent:
         :return: A dictionary with the updated state, including the response and the node category.
         """
         # Generate a response based on the user's initial message
-        full_response = self.generate_commission_response(state['initialMessage'])
+        full_response = self.generate_commission_response(state['initialMessage'],state['sessionHistory'])
         
         # Return the updated state with the generated response and the category set to 'commission'
         return {

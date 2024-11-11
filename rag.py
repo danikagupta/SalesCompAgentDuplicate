@@ -1,64 +1,92 @@
-import streamlit as st
 import os
-import random
-from src.graph import salesCompAgent
-from src.utils import show_navigation
+import PyPDF2
+import hashlib
+import numpy as np
 
-# Set environment variables
-os.environ["LANGCHAIN_TRACING_V2"]="true"
-os.environ["LANGCHAIN_API_KEY"]=st.secrets['LANGCHAIN_API_KEY']
-os.environ["LANGSMITH_API_KEY"]=st.secrets['LANGCHAIN_API_KEY']
+import streamlit as st
+from streamlit.logger import get_logger
 
-DEBUGGING=0
+from pinecone import Pinecone
+from openai import OpenAI
 
-# This function sets up the chat interface and handles user interactions
-def start_chat():
-    st.title('Sales Comp Agent')
-    show_navigation()
-    avatars={"system":"💻🧠","user":"🧑‍💼","assistant":"🎓"}
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.document_loaders import PyPDFLoader
+
+from pathlib import Path
+
+# Note: As a system admin, you only run this script directly from bash to upload the PDF or Markdown files for RAG. 
+# The users of Sales Comp Agents will not use this functionality.
+# Run using "streamlit run rag.py"
+
+# Initialize logger
+LOGGER = get_logger(__name__)
+
+# Get API keys and configuration from Streamlit secrets
+PINECONE_API_KEY=st.secrets['PINECONE_API_KEY']
+PINECONE_API_ENV=st.secrets['PINECONE_API_ENV']
+PINECONE_INDEX_NAME=st.secrets['PINECONE_INDEX_NAME']
+
+# Initialize OpenAI client
+client=OpenAI(api_key=st.secrets['OPENAI_API_KEY'])
+
+# Convert PDF file to text string
+def pdf_to_text(uploaded_file):
+    pdfReader = PyPDF2.PdfReader(uploaded_file)
+    count = len(pdfReader.pages)
+    text=""
+    for i in range(count):
+        page = pdfReader.pages[i]
+        text=text+page.extract_text()
+    return text
+
+# Convert Markdown file to text string
+def md_to_text(uploaded_file):
+    # Read markdown file content directly as text
+    return uploaded_file.getvalue().decode('utf-8')
+
+# Create embeddings for text and store in Pinecone
+def embed(text,filename):
+    pc = Pinecone(api_key=st.secrets['PINECONE_API_KEY'])
+    index = pc.Index(PINECONE_INDEX_NAME)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size = 1000,chunk_overlap  = 200,length_function = len,is_separator_regex = False)
+    docs=text_splitter.create_documents([text])
     
-    # Keeping context of conversations, checks if there is anything in messages array
-    # If not, it creates an empty list where all messages will be saved
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    # Process each chunk
+    for idx,d in enumerate(docs):
+        # Create unique hash for the chunk
+        hash=hashlib.md5(d.page_content.encode('utf-8')).hexdigest()
+        # Generate embedding using OpenAI
+        embedding=client.embeddings.create(model="text-embedding-ada-002", input=d.page_content).data[0].embedding
+        # Create metadata for the chunk
+        metadata={"hash":hash,"text":d.page_content,"index":idx,"model":"text-embedding-ada-003","docname":filename}
+        # Store in Pinecone
+        index.upsert([(hash,embedding,metadata)])
+    return
 
-    # Ensuring a unique thread-id is maintained for every conversation
-    if "thread-id" not in st.session_state:
-        st.session_state.thread_id = random.randint(1000, 9999)
-    thread_id = st.session_state.thread_id
-
-    # Display previous messages
-    for message in st.session_state.messages:
-        if message["role"] != "system":
-            avatar=avatars[message["role"]]
-            with st.chat_message(message["role"], avatar=avatar):
-                st.markdown(message["content"])
-
-    # Handle new user input. Note: walrus operator serves two functions, it checks if
-    # the user entered any input. If yes, it returns that value and assigns to 'prompt'.
-    if prompt := st.chat_input("What is up?"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user", avatar=avatars["user"]):
-            st.markdown(prompt)
-        
-        # Initialize salesCompAgent
-        abot=salesCompAgent(st.secrets['OPENAI_API_KEY'])
-        thread={"configurable":{"thread_id":thread_id}}
-        
-        # Stream responses from the agent
-        for s in abot.graph.stream({'initialMessage': prompt}, thread):
-            #st.sidebar.write(abot.graph.get_state(thread))
-            if DEBUGGING:
-                print(f"GRAPH RUN: {s}")
-                st.write(s)
-            for k,v in s.items():
-                if DEBUGGING:
-                    print(f"Key: {k}, Value: {v}")
-            if resp := v.get("responseToUser"):
-                with st.chat_message("assistant", avatar=avatars["assistant"]):
-                    st.write(resp)
-                st.session_state.messages.append({"role": "assistant", "content": resp})
-
+# In Python file, if you set __name__ variable to '__main__', any code
+# inside that if statement is run when the file is run directly.
 if __name__ == '__main__':
-    start_chat()
- 
+    # Section 1: Direct Text Input
+    # Creates a text area where users can paste or type text directly    
+    st.markdown("# Upload text directly")
+    uploaded_text = st.text_area("Enter Text","")
+    if st.button('Process and Upload Text'):
+        embedding = embed(uploaded_text,"Anonymous")
+
+    # Section 2: File Upload. 
+    # Allows users to upload either PDF or Markdown files and add to Pinecone
+    st.markdown("# Upload file: PDF or Markdown")
+    uploaded_file = st.file_uploader("Upload file", type=["pdf", "md"])
+    if uploaded_file is not None:
+        if st.button('Process and Upload File'):
+            # Determine file type and process accordingly
+            file_extension = Path(uploaded_file.name).suffix.lower()
+            if file_extension == '.pdf':
+                # Convert PDF to text using PyPDF2
+                file_text = pdf_to_text(uploaded_file)
+            else:  # .md file
+                # Read markdown file directly as text
+                file_text = md_to_text(uploaded_file)
+            # Convert text to embeddings and store in Pinecone using original filename
+            embedding = embed(file_text, uploaded_file.name)
+        

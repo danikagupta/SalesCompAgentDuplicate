@@ -10,6 +10,7 @@ from google.oauth2 import service_account
 from langchain_core.messages import HumanMessage, AIMessage
 from src.conv_history import message_history_to_string, string_to_message_history, get_short_conv_title
 from src.supabase_integration import get_supabase_client, upsert_conv_history, get_conv_history_for_user
+from src.chat_feedback import accept_feedback, LangsmithRunRecorder
 
 os.environ["LANGCHAIN_TRACING_V2"]="true"
 os.environ["LANGCHAIN_API_KEY"]=st.secrets['LANGCHAIN_API_KEY']
@@ -112,13 +113,14 @@ def config_for_langgraph():
         if user_record.get("account_name"):
             metadata["account_name"] = user_record.get("account_name")
     #print(f"session_state = {st.session_state}")
-
+    run_recorder = LangsmithRunRecorder()
     config = {
         "configurable":{"thread_id":thread_id},
         #"tags": ["production", "sentiment-analysis", "v1.0"],
-        "metadata": metadata 
+        "metadata": metadata,
+        "callbacks": [run_recorder],
     }
-    return thread_id, config
+    return thread_id, config, run_recorder
 
 
 def start_chat(container=st):
@@ -220,7 +222,7 @@ def start_chat(container=st):
                 message_history.append(AIMessage(content=m["content"]))
         
         app = salesCompAgent(st.secrets['OPENAI_API_KEY'], st.secrets['EMBEDDING_MODEL'])
-        thread_id, config = config_for_langgraph()
+        thread_id, config, run_recorder = config_for_langgraph()
 
 
         parameters = {'initialMessage': prompt.text, 
@@ -239,6 +241,8 @@ def start_chat(container=st):
             full_response = ""
             
             for s in app.graph.stream(parameters, config):
+                if run_recorder.root_run_id and st.session_state.get("last_langsmith_run_id") != run_recorder.root_run_id:
+                    st.session_state["last_langsmith_run_id"] = run_recorder.root_run_id
                 if DEBUGGING:
                     print(f"GRAPH RUN: {s}")
                 for k,v in s.items():
@@ -251,6 +255,7 @@ def start_chat(container=st):
                         cleaned_resp = resp.replace('\n', ' ').replace('  ', ' ')
                         st.markdown(cleaned_resp, unsafe_allow_html=True)
                         st.session_state.messages.append({"role": "assistant", "content": cleaned_resp})
+                        accept_feedback()
                         save_conv_history_to_db(thread_id)
                 
                 if resp := v.get("incrementalResponse"):
@@ -263,6 +268,7 @@ def start_chat(container=st):
                             placeholder.markdown(display_text)
                             #placeholder.markdown(full_response.replace("$", "\\$"))
                     st.session_state.messages.append({"role": "assistant", "content": full_response})
+                    accept_feedback()
                     
                     save_conv_history_to_db(thread_id)
 

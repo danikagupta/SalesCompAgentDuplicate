@@ -88,7 +88,39 @@ def restore_conv_history_to_ui(conv_id, conv):
     messages = string_to_message_history(conv)
     st.session_state.messages = messages
     st.rerun()
+
+def config_for_langgraph():
+
+    if "thread_id" not in st.session_state:
+        st.session_state.thread_id = random.randint(1000, 100000000)
+    thread_id = st.session_state.thread_id
     
+    metadata = {
+        "url": st.context.url,
+
+    }
+
+    if st.session_state.get("user_record"):
+        user_record = st.session_state.user_record
+
+        if user_record.get("login"):
+            metadata["login"] = user_record.get("login")
+
+        if user_record.get("full_name"):
+            metadata["full_name"] = user_record.get("full_name")
+
+        if user_record.get("account_name"):
+            metadata["account_name"] = user_record.get("account_name")
+    #print(f"session_state = {st.session_state}")
+
+    config = {
+        "configurable":{"thread_id":thread_id},
+        #"tags": ["production", "sentiment-analysis", "v1.0"],
+        "metadata": metadata 
+    }
+    return thread_id, config
+
+
 def start_chat(container=st):
     #st.title("Cl3vr")
     #st.markdown("""
@@ -121,9 +153,7 @@ def start_chat(container=st):
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    if "thread_id" not in st.session_state:
-        st.session_state.thread_id = random.randint(1000, 100000000)
-    thread_id = st.session_state.thread_id
+    
 
     #json_str = message_history_to_string(st.session_state.messages)
     #with st.sidebar.expander("json_str"):
@@ -190,7 +220,9 @@ def start_chat(container=st):
                 message_history.append(AIMessage(content=m["content"]))
         
         app = salesCompAgent(st.secrets['OPENAI_API_KEY'], st.secrets['EMBEDDING_MODEL'])
-        thread={"configurable":{"thread_id":thread_id}}
+        thread_id, config = config_for_langgraph()
+
+
         parameters = {'initialMessage': prompt.text, 
                       #'sessionState': st.session_state, 
                         #'sessionHistory': st.session_state.messages, 
@@ -206,7 +238,7 @@ def start_chat(container=st):
         with st.spinner("Thinking ...", show_time=True):
             full_response = ""
             
-            for s in app.graph.stream(parameters, thread):
+            for s in app.graph.stream(parameters, config):
                 if DEBUGGING:
                     print(f"GRAPH RUN: {s}")
                 for k,v in s.items():
